@@ -14,3 +14,8 @@ pip install pymupdf
 pip install pyttsx3
 pip install SpeechRecognition
 ```
+### SerpApi
+[Doc](https://serpapi.com/integrations/python)
+```commandline
+pip install google-search-results
+```
