@@ -21,11 +21,11 @@ llm = ChatOpenAI(temperature=0)
 memory = ConversationBufferMemory(return_messages=True)
 conversation = ConversationChain(memory=memory, prompt=prompt, llm=llm)
 
-conversation.predict(input="Hi there!")
+conversation.predict(input=input())
 
-conversation.predict(input="I'm doing well! Just having a conversation with an AI.")
+conversation.predict(input=input())
 
-conversation.predict(input="Tell me about yourself.")
+conversation.predict(input=input())
 
 print(memory)
 
