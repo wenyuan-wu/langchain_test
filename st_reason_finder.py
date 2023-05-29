@@ -149,7 +149,7 @@ if user_input and st.button("Submit", type="primary"):
     st.session_state.reason = reason_extractor(st.session_state.prompt_context, st.session_state.history)
 
 # Set up sidebar with various options
-with st.sidebar.expander("Settings ", expanded=False):
+with st.sidebar.expander("Status", expanded=True):
     if st.checkbox("Preview memory buffer"):
         st.write(st.session_state.memory.buffer)
     st.markdown("## Preview prompt context")
