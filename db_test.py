@@ -2,7 +2,8 @@
 def create_db():
     patient_db = {
         12: {
-            "name": "John",
+            "name": "Daniel",
+            "age": "34",
             "BMI": "27",
             "plan": 27,
         }

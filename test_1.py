@@ -12,6 +12,7 @@ from langchain.schema import (
     HumanMessage,
     SystemMessage
 )
+from langchain.memory import ConversationBufferMemory
 
 
 def chat_sum(text):
@@ -25,7 +26,7 @@ def chat_sum(text):
 
     # get a chat completion from the formatted messages
     messages = chat_prompt.format_prompt(text=text).to_messages()
-    # print(messages)
+    print(messages)
     result = chat(messages)
     return result
 
