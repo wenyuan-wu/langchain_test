@@ -55,7 +55,7 @@ def get_text():
         # what is this?
         st.session_state["input"],
         key="input",
-        placeholder="Your AI assistant is here! Ask me anything ...",
+        placeholder="Type 'Hi' to get started.",
         label_visibility="hidden",
     )
     return input_text
@@ -139,7 +139,7 @@ st.sidebar.button("New Chat", on_click=new_chat, type="primary")
 user_input = get_text()
 
 # Generate the output using the ConversationChain object and the user input, and add the input/output to the session
-if user_input:
+if user_input and st.button("Submit", type="primary"):
     output = Conversation.run(input=user_input)
     st.session_state.past.append(user_input)
     st.session_state.generated.append(output)
@@ -152,10 +152,10 @@ if user_input:
 with st.sidebar.expander("Settings ", expanded=False):
     if st.checkbox("Preview memory buffer"):
         st.write(st.session_state.memory.buffer)
-    if st.checkbox("Preview prompt context"):
-        st.write(st.session_state.prompt_context)
-    if st.checkbox("Preview reason extractor"):
-        st.write(st.session_state.reason)
+    st.markdown("## Preview prompt context")
+    st.write(st.session_state.prompt_context)
+    st.markdown("## Preview reason extractor")
+    st.write(st.session_state.reason)
 
 # Allow to download as well
 download_str = []
