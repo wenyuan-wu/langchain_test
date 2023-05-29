@@ -17,9 +17,9 @@ def chatgpt_wrapper(sys_prompt, text):
         streaming=True,
         # callbacks=[StreamingStdOutCallbackHandler()] # not needed for wrapper
     )
-    system_message_prompt = SystemMessagePromptTemplate.from_template(sys_prompt)
+    system_message_prompt = SystemMessagePromptTemplate.from_template(sys_prompt, validate_template=False)
     human_template = "{text}"
-    human_message_prompt = HumanMessagePromptTemplate.from_template(human_template)
+    human_message_prompt = HumanMessagePromptTemplate.from_template(human_template, validate_template=False)
     chat_prompt = ChatPromptTemplate.from_messages([system_message_prompt, human_message_prompt])
     # get a chat completion from the formatted messages
     messages = chat_prompt.format_prompt(text=text).to_messages()
@@ -27,3 +27,6 @@ def chatgpt_wrapper(sys_prompt, text):
     result = llm(messages)
     return result.content
 
+
+def dummy_chatbot(sys_prompt, text):
+    return text[::-1]

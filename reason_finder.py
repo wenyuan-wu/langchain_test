@@ -33,7 +33,7 @@ def create_context_template(event):
     json_str = json.dumps(event)
     # print(json_str)
     sys_template = "You are a helpful assistant that convert the JSON format input into natural language. " \
-                   "The {{'completed': false}} indicates that the patient did not take the measure as intended. " \
+                   "The 'completed': false indicates that the patient did not take the measure as intended. " \
                    "The purpose of the output is to put it into a prompt for another large language model. " \
                    "The output should only be the conversation in natural language, nothing else. "
     result = chatgpt_wrapper(sys_template, json_str)

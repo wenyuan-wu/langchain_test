@@ -1,8 +1,6 @@
-from db_test import create_db
-import json
-from util import chatgpt_wrapper
-from dotenv import load_dotenv
-from langchain.chat_models import ChatOpenAI
+import logging
+
+import streamlit as st
 from langchain.chains import ConversationChain
 from langchain.memory import ConversationBufferMemory
 from langchain.prompts import (
@@ -11,142 +9,178 @@ from langchain.prompts import (
     SystemMessagePromptTemplate,
     HumanMessagePromptTemplate
 )
-from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
-from langchain.output_parsers import StructuredOutputParser, ResponseSchema
-import logging
-import streamlit as st
+from langchain.chat_models import ChatOpenAI
+from dotenv import load_dotenv
+import pandas as pd
+from db_test import create_db
+
+from reason_finder import get_full_info, create_context_template, reason_extractor
+
+load_dotenv()
+
+# Set Streamlit page configuration
+st.set_page_config(
+    page_title="Prototype Zero of Agent",
+    page_icon="🤖"
+)
+
+# Initialize session states
+if "generated" not in st.session_state:
+    st.session_state["generated"] = []
+if "past" not in st.session_state:
+    st.session_state["past"] = []
+if "input" not in st.session_state:
+    st.session_state["input"] = ""
+if "stored_session" not in st.session_state:
+    st.session_state["stored_session"] = []
+if "reason" not in st.session_state:
+    st.session_state["reason"] = ""
+if "prompt_context" not in st.session_state:
+    st.session_state["prompt_context"] = ""
+if "memory" not in st.session_state:
+    st.session_state["memory"] = ConversationBufferMemory(return_messages=True)
+if "history" not in st.session_state:
+    st.session_state["history"] = []
 
 
-logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s',
-                    level=logging.INFO,
-                    # datefmt='%d-%b-%y %H:%M:%S'
-                    )
-
-
-def get_full_info(event):
-    patient_db, plan_db, measure_db = create_db()
-    event["patient"] = {k: patient_db[event["patient"]][k] for k in ["name", "age", "BMI"]}
-    event["plan"] = plan_db[event["plan"]]["plan"]
-    event["measure"] = measure_db[event["measure"]]["measure"]
-    return event
-
-
-def create_context_template(event):
-    json_str = json.dumps(event)
-    # print(json_str)
-    sys_template = "You are a helpful assistant that convert the JSON format input into natural language. " \
-                   "The {{'completed': false}} indicates that the patient did not take the measure as intended. " \
-                   "The purpose of the output is to put it into a prompt for another large language model. " \
-                   "The output should only be the conversation in natural language, nothing else. "
-    result = chatgpt_wrapper(sys_template, json_str)
-    return result
-
-
-def reason_extractor(prompt_context, history):
-    sys_template = f"I would like you to analyze a conversation history between a patient and a physician in order to " \
-                   "identify the clearly described reason why the patient did not follow the prescribed measures. Remember, " \
-                   "you are doing qualitative research, the common excuses or vague answers shouldn't be considered as " \
-                   "the real reason. For example, an over-weight person who would not want to go swimming " \
-                   "in public pools " \
-                   "is afraid that his body would be judged by others in public pools, but he might not express this " \
-                   f"clearly at first. Here is the context information of the conversation: {prompt_context}" \
-                   "You will ONLY provide the output in JSON format, " \
-                   "with a boolean indicating whether a reason was found and a 'reason' field containing a " \
-                   "one-sentence summary of the patient's reason without any personal information, like name or age. " \
-                   "Additionally, a 'confidence_score' from 0-100 indicates how confident you are with your answer. " \
-                   "If no reason can " \
-                   "be determined or the conversation history is not provided, " \
-                   "the 'reason_found' value will be False and the 'reason' will be 'null', " \
-                   "the 'confidence_score' will be 0"
-    sys_template = sys_template + prompt_context
-    history_str = "\n".join(history)
-    result = chatgpt_wrapper(sys_template, history_str)
-    try:
-        output = json.loads(result)
-    except json.JSONDecodeError:
-        logging.info("The response was not valid JSON.")
-        non_reason = """
-        {
-        "reason_found": false,
-        "reason": null,
-        "confidence_score": 0
-        }
-        """
-        output = json.loads(non_reason)
-    return output
-
-
-def reason_finder(event):
-    event = get_full_info(event)
-    prompt_context = create_context_template(event)
-    # print(prompt_context)
-    sys_template = "The following is a friendly conversation between a physician and a patient. " \
-                   "The physician is talkative and provides lots of specific details from its context." \
-                   "The physician is trying to find out why the patient did not complete the planned measure. " \
-                   "The first message from user input will be 'Hi', " \
-                   "ignore this message and create a short greeting to get the conversation started. " \
-                   "Here is the context information: "
-    sys_template = sys_template + prompt_context
-    prompt = ChatPromptTemplate.from_messages([
-        SystemMessagePromptTemplate.from_template(sys_template, validate_template=False),
-        MessagesPlaceholder(variable_name="history"),
-        HumanMessagePromptTemplate.from_template("{input}")
-    ])
-    llm = ChatOpenAI(
-        model_name="gpt-3.5-turbo",
-        temperature=0,
-        streaming=True,
-        callbacks=[StreamingStdOutCallbackHandler()]
-    )
-    memory = ConversationBufferMemory(return_messages=True)
-    conversation = ConversationChain(memory=memory, prompt=prompt, llm=llm)
-    history = []
-    while True:
-        usr_prompt = input("\ntype input here: \n")
-        history.append(f"patient: {usr_prompt}")
-        logging.info(history)
-        reason = reason_extractor(prompt_context, history)
-        logging.info(reason)
-        if reason["confidence_score"] < 95:
-            resp = conversation(usr_prompt)
-            history.append(f"physician: {resp['response']}")
-        else:
-            print(memory.json())
-            return reason
-
-
-def page_init():
-    # Load the OpenAI API key from the environment variable
-    # load_dotenv()
-    # # test that the API key exists
-    # if os.getenv("OPENAI_API_KEY") is None or os.getenv("OPENAI_API_KEY") == "":
-    #     print("OPENAI_API_KEY is not set")
-    #     exit(1)
-    # else:
-    #     print("OPENAI_API_KEY is set")
-    # setup streamlit page
-    st.set_page_config(
-        page_title="Prompt Engineering Playground",
-        page_icon="🤖"
-    )
-    st.write("# Prompt Engineering Playground 🤖")
-    st.markdown(
-        """
-        Streamlit is an open-source app framework built specifically for
-        Machine Learning and Data Science projects.
+# Define function to get user input
+def get_text():
     """
+    Get the user input text.
+    Returns:
+        (str): The text entered by the user
+    """
+    input_text = st.text_input(
+        "You: ",
+        # what is this?
+        st.session_state["input"],
+        key="input",
+        placeholder="Your AI assistant is here! Ask me anything ...",
+        label_visibility="hidden",
     )
+    return input_text
 
 
-if __name__ == '__main__':
-    load_dotenv()
-    page_init()
-    event_json = {
-        "patient": 12,
-        "plan": 27,
-        "measure": 18,
-        "completed": False
-    }
+# Define function to start a new chat
+def new_chat():
+    """
+    Clears session state and starts a new chat.
+    """
+    save = []
+    # range -1?
+    for i in range(len(st.session_state["generated"]) - 1, -1, -1):
+        save.append("User:" + st.session_state["past"][i])
+        save.append("Bot:" + st.session_state["generated"][i])
+    st.session_state["stored_session"].append(save)
+    st.session_state["generated"] = []
+    st.session_state["past"] = []
+    st.session_state["input"] = ""
+    st.session_state.memory.buffer.clear()
+    st.session_state.prompt_context = ""
+    st.session_state.history = []
+    st.session_state.reason = ""
 
-    # reason_stat = reason_finder(event_json)
-    # print(reason_stat)
+
+# Set up the Streamlit app layout
+st.write("# Prototype Zero of Agent 🤖")
+st.markdown("Prototype of a conversational agent, which is triggered by a event and "
+            "conduct conversation with patient to extract the reason of the event")
+
+patient_db, plan_db, measure_db = create_db()
+patient_df = pd.DataFrame.from_dict(patient_db, orient='index', columns=["name", "age", "BMI", "plan"])
+st.markdown("## Patient Database")
+st.write(patient_df)
+plan_df = pd.DataFrame.from_dict(plan_db, orient='index', columns=["plan"])
+st.markdown("## Plan Database")
+st.write(plan_df)
+measure_df = pd.DataFrame.from_dict(measure_db, orient='index', columns=["measure"])
+st.markdown("## Measure Database")
+st.write(measure_df)
+event_json = {
+    "patient": 12,
+    "plan": 27,
+    "measure": 18,
+    "completed": False
+}
+st.markdown("## Event JSON")
+st.write(event_json)
+st.markdown("## Conversational Agent")
+
+event = get_full_info(event_json)
+st.session_state.prompt_context = create_context_template(event)
+
+sys_template = "The following is a friendly conversation between a physician and a patient. " \
+               "The physician is talkative and provides lots of specific details from its context." \
+               "The physician is trying to find out why the patient did not complete the planned measure. " \
+               "The first message from user input will be 'Hi', " \
+               "ignore this message and create a short greeting to get the conversation started. " \
+               "Here is the context information: "
+sys_template = sys_template + st.session_state.prompt_context
+# Create an OpenAI instance
+llm = ChatOpenAI(temperature=0, model_name="gpt-3.5-turbo")
+prompt = ChatPromptTemplate.from_messages([
+    SystemMessagePromptTemplate.from_template(sys_template, validate_template=False),
+    MessagesPlaceholder(variable_name="history"),
+    HumanMessagePromptTemplate.from_template("{input}")
+])
+
+# Create the ConversationChain object with the specified configuration
+Conversation = ConversationChain(
+    llm=llm,
+    prompt=prompt,
+    memory=st.session_state.memory,
+)
+
+
+# Add a button to start a new chat
+st.sidebar.button("New Chat", on_click=new_chat, type="primary")
+
+# Get the user input
+user_input = get_text()
+
+# Generate the output using the ConversationChain object and the user input, and add the input/output to the session
+if user_input:
+    output = Conversation.run(input=user_input)
+    st.session_state.past.append(user_input)
+    st.session_state.generated.append(output)
+    st.session_state.history.append(f"patient: {user_input}")
+    st.session_state.history.append(f"physician: {output}")
+    logging.info(f"{st.session_state.history}")
+    st.session_state.reason = reason_extractor(st.session_state.prompt_context, st.session_state.history)
+
+# Set up sidebar with various options
+with st.sidebar.expander("Settings ", expanded=False):
+    if st.checkbox("Preview memory buffer"):
+        st.write(st.session_state.memory.buffer)
+    if st.checkbox("Preview prompt context"):
+        st.write(st.session_state.prompt_context)
+    if st.checkbox("Preview reason extractor"):
+        st.write(st.session_state.reason)
+
+# Allow to download as well
+download_str = []
+# Display the conversation history using an expander, and allow the user to download it
+with st.expander("Conversation", expanded=True):
+    for i in range(len(st.session_state["generated"]) - 1, -1, -1):
+        st.success(st.session_state["generated"][i], icon="👨‍⚕️")
+        st.info(st.session_state["past"][i], icon="🧐")
+        download_str.append(st.session_state["past"][i])
+        download_str.append(st.session_state["generated"][i])
+
+    # Can throw error - requires fix
+    download_str = "\n".join(download_str)
+    if download_str:
+        st.download_button("Download", download_str)
+
+# Display stored conversation sessions in the sidebar
+for i, sublist in enumerate(st.session_state.stored_session):
+    with st.sidebar.expander(label=f"Conversation-Session:{i}"):
+        st.write(sublist)
+
+# Allow the user to clear all stored conversation sessions
+if st.session_state.stored_session:
+    if st.sidebar.button("Clear all", type="primary"):
+        st.session_state.stored_session = []
+
+st.markdown("---")
+
