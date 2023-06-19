@@ -76,8 +76,8 @@ class SQLiteUtility:
         if if_json:
             col_names = [description[0] for description in cur.description]
             res_data = [dict(zip(col_names, row)) for row in rows]
-            json_data = json.dumps(res_data, indent=4)
-            return json_data
+            # json_data = json.dumps(res_data, indent=4)
+            return res_data
         else:
             return rows
 
@@ -98,6 +98,13 @@ def create_db(db_folder, db_name, table_name, table_col, data_list):
     db.create_table(table_name, table_col)
     db.insert_rows(table_name, data_list)
     db.close_connection()
+
+
+def query_by_id(db_path, table_name, key_id):
+    db = SQLiteUtility(db_path)
+    res_json = db.select_rows(table_name, condition=f"id={key_id}", if_json=True)
+    db.close_connection()
+    return res_json
 
 
 if __name__ == '__main__':
