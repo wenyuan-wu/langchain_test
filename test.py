@@ -1,55 +1,59 @@
 from dotenv import load_dotenv
 from reason_finder import get_full_info, reason_extractor
-from db_init import query_by_id
+from db_init import query_by_id, SQLiteUtility
 import os
 from util import chatgpt_wrapper
 import json
+import uuid
+from datetime import datetime
 
-# history = ['patient: Hi', 'physician: Hello! How can I assist you today?']
-# contex = """The patient's name is Daniel and he is 34 years old with a BMI of 27. His plan includes intermittent
-# fasting with an eating window until 1 pm and swimming for 30 minutes or 500 meters on Monday, Thursday, and Saturday
-# evenings. The measure he was supposed to take was to go swimming on Thursday evening, but the {'completed': false}
-# indicates that he did not do it as intended."""
-#
-# reason = reason_extractor(contex, history)
-# print(reason)
 
-event_json = {
-    "patient": 12,
-    "plan": 27,
-    "measure": 18,
-    "completed": False
-}
+def record_chat_db(db_path, chat_id, usr_id, chat_time, chat_type, language, chat_sum, chat_list):
+    db = SQLiteUtility(db_path)
+    data_list = [
+        {
+            "id": chat_id,
+            "usr_id": usr_id,
+            "time": chat_time,
+            "type": chat_type,
+            "language": language,
+            "conversation_sum": chat_sum,
+            "conversation_text": json.dumps(chat_list)
+        },
+    ]
+    db.insert_rows("conversations", data_list)
+    db.close_connection()
+
+
+def update_chat_db(db_path, chat_id, chat_list):
+    db = SQLiteUtility(db_path)
+    data_list = [
+        {
+            "conversation_text": json.dumps(chat_list)
+        },
+    ]
+    db.update_rows("conversations", data_list, f"id='{chat_id}'")
+    db.close_connection()
+
 
 database_folder = "database"
-patient_db_path = os.path.join(database_folder, "patient.db")
-res_json = query_by_id(patient_db_path, "patients", event_json["patient"])
-print(res_json)
+chat_db_path = os.path.join(database_folder, "conversation.db")
+usr_id = 12
+first_chat = []
+second_chat = ['patient: Hi']
+third_chat = ['patient: Hi', 'physician: Hello! How can I assist you today?']
+forth_chat = ['patient: Hi', 'physician: Hello! How can I assist you today?', 'patient: I am not feeling well.']
 
-out_json = get_full_info(event_json)
-print(out_json)
+chat_id = str(uuid.uuid4())  # Generates a unique ID
+now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
+chat_type = "reason finder"
+language = "en"
+conversation_sum = f"reason finder at {now} with {usr_id}"
 
-def create_context_template(event):
-    json_str = json.dumps(event)
-    # print(json_str)
-    sys_template = "You are a helpful assistant that convert the JSON format input into natural language. " \
-                   "The 'completed': false indicates that the patient did not take the measure as intended. " \
-                   "The purpose of the output is to put it into a prompt for another large language model. " \
-                   "The output should only be the conversation in natural language, nothing else. "
-    result = chatgpt_wrapper(sys_template, json_str)
-    return result
+# record_chat_db(chat_db_path, chat_id, usr_id, now, chat_type, language, conversation_sum, first_chat)
 
-
-# sys_template = "You are a helpful assistant that convert the JSON format input into natural language. " \
-#                "The 'completed' status indicates if the patient did take the measure as intended or did not. " \
-#                "The purpose of the output is to put it into a prompt for another large language model. " \
-#                "The output should only be the conversation in natural language, nothing else. "
-
-prompt_db_path = os.path.join(database_folder, "prompt.db")
-sys_temp = query_by_id(prompt_db_path, "prompts", 2)[0]["prompt_text"]
+update_chat_db(chat_db_path, "b8157233-82ba-4318-ad03-9b731bb2089c", forth_chat)
 
 
-# gpt_result = chatgpt_wrapper(sys_temp, out_json)
-# print(gpt_result)
 
