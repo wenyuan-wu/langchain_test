@@ -46,7 +46,7 @@ def create_context_template(event):
 def agreement_checker(prompt_context, history):
     database_folder = "database"
     prompt_db_path = os.path.join(database_folder, "prompt.db")
-    sys_template = query_by_id(prompt_db_path, "prompts", 3)[0]["prompt_text"]
+    sys_template = query_by_id(prompt_db_path, "prompts", 6)[0]["prompt_text"]
     sys_template = sys_template.format(prompt_context=prompt_context)
     history_str = "\n".join(history)
     result = chatgpt_wrapper_16k(sys_template, history_str)  # gpt 16k model
@@ -56,8 +56,8 @@ def agreement_checker(prompt_context, history):
         logging.info("The response was not valid JSON.")
         non_reason = """
         {
-        "reason_found": false,
-        "reason": null,
+        "agreement": false,
+        "measure": null,
         "confidence_score": 0
         }
         """
@@ -72,7 +72,20 @@ def measure_giver(event, chat_history):
     database_folder = "database"
     prompt_db_path = os.path.join(database_folder, "prompt.db")
     sys_template = query_by_id(prompt_db_path, "prompts", 5)[0]["prompt_text"]
-    sys_template = sys_template.format(prompt_context=prompt_context)
+    measure = [
+  {
+    "id": 18,
+    "measure_sum": "Do-Abend schwimmen",
+    "measure_text": "Am Do-Abend schwimmen gehen"
+  },
+  {
+    "id": 19,
+    "measure_sum": "Aqua-Fit anschliessen",
+    "measure_text": "sich einer Aqua-Fit anschliessen, wo andere, übergewichtigeMenschen auch teilnehmen"
+  }
+]
+    measure = str(measure)
+    sys_template = sys_template.format(prompt_context=prompt_context, measure=measure)
     prompt = ChatPromptTemplate.from_messages([
         SystemMessagePromptTemplate.from_template(sys_template, validate_template=False),
         MessagesPlaceholder(variable_name="history"),
