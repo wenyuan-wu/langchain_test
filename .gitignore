@@ -4,3 +4,4 @@ venv/
 .DS_Store
 __pycache__/
 testing_ground/__pycache__/
+.streamlit/
