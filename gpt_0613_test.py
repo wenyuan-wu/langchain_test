@@ -19,7 +19,7 @@ def get_current_weather(location, unit="fahrenheit"):
 # Step 1, send model the user query and what functions it has access to
 def run_conversation():
     response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo-0613",
+        model="gpt-4",
         messages=[{"role": "user", "content": "What's the weather like in Boston?"}],
         # messages=[{"role": "user", "content": "Do you know the way?"}],
         functions=[
